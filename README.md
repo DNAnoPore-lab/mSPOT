@@ -1,6 +1,153 @@
 # mSPOT
 
-Given that pod5 file is too large, we uploaded a short fasta file used for testing after step 1-3. Reviewers can run step 4-12 to verify data processing. “calls.fa” is the initial file.
+Given that pod5 file is too large, we uploaded a short fasta file used for testing after step 1-3. Reviewers can run Part B step 4-12 to verify data processing. “calls.fa” is the initial file.
+
+==============Part A. Design of domains of multiplexed DNAzyme and barcode sequence of Barcoded reporters=============================================
+Python:
+
+1. Design of domains of multiplexed DNAzyme
+
+import random
+import csv
+random.seed(42)
+# Parameters
+num_sequences = 112
+seq_length = 24
+min_levenshtein_distance = 10
+max_homopolymer = 2
+gc_content_range = (0.4, 0.6)
+nucleotides = ['A', 'T', 'C', 'G']
+
+# Levenshtein distance calculation function
+def levenshtein(s1, s2):
+    if len(s1) < len(s2):
+        return levenshtein(s2, s1)
+    if len(s2) == 0:
+        return len(s1)
+    previous_row = range(len(s2) + 1)
+    for i, c1 in enumerate(s1):
+        current_row = [i + 1]
+        for j, c2 in enumerate(s2):
+            insertions = previous_row[j + 1] + 1
+            deletions = current_row[j] + 1
+            substitutions = previous_row[j] + (c1 != c2)
+            current_row.append(min(insertions, deletions, substitutions))
+        previous_row = current_row
+    return previous_row[-1]
+
+# Check for long homopolymers
+def has_long_homopolymer(seq, max_run):
+    count = 1
+    last = seq[0]
+    for nt in seq[1:]:
+        if nt == last:
+            count += 1
+            if count > max_run:
+                return True
+        else:
+            count = 1
+            last = nt
+    return False
+
+# Calculate GC content
+def gc_content(seq):
+    gc = seq.count('G') + seq.count('C')
+    return gc / len(seq)
+
+# Generate a random sequence
+def generate_random_sequence():
+    return ''.join(random.choices(nucleotides, k=seq_length))
+
+# Main generation loop
+sequences = []
+attempts = 0
+max_attempts = 100000
+
+while len(sequences) < num_sequences and attempts < max_attempts:
+    attempts += 1
+    candidate = generate_random_sequence()
+    
+    # Check homopolymers
+    if has_long_homopolymer(candidate, max_homopolymer):
+        continue
+    
+    # Check GC content
+    gc_frac = gc_content(candidate)
+    if not (gc_content_range[0] <= gc_frac <= gc_content_range[1]):
+        continue
+    
+    # Check Levenshtein distance against existing sequences
+    if all(levenshtein(candidate, existing) >= min_levenshtein_distance for existing in sequences):
+        sequences.append(candidate)
+
+# Output CSV file
+output_file = 'dna_sequences_levenshtein.csv'
+with open(output_file, 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(['Index', 'Sequence'])
+    for idx, seq in enumerate(sequences, 1):
+        writer.writerow([idx, seq])
+
+print(f"Generation complete: {len(sequences)} sequences saved to {output_file}")
+
+2. Design of barcode sequence for nanopore sequencing
+
+from itertools import product
+
+# Compute Hamming distance
+def hamming_distance(seq1, seq2):
+    """Compute the Hamming distance between two sequences"""
+    return sum(c1 != c2 for c1, c2 in zip(seq1, seq2))
+
+# Validate whether the candidate sequence satisfies the Hamming distance constraint
+def is_valid_sequence(candidate, sequences, min_distance):
+    """Check if a new sequence meets the Hamming distance requirement within the set"""
+    for seq in sequences:
+        if hamming_distance(candidate, seq) < min_distance:
+            return False
+    return True
+
+# Calculate GC content
+def gc_content(sequence):
+    """Calculate the total number of G and C in the sequence"""
+    return sequence.count('G') + sequence.count('C')
+
+# Main function: find sequences that satisfy all constraints
+def find_gc_filtered_sequences(sequence_length, symbols, min_distance, gc_min, gc_max):
+    """Find sequences satisfying GC content constraints and Hamming distance requirements"""
+    all_sequences = list(product(symbols, repeat=sequence_length))  # All possible sequences
+    valid_sequences = []
+
+    for seq in all_sequences:
+        # Check if Hamming distance constraint is satisfied
+        if is_valid_sequence(seq, valid_sequences, min_distance):
+            valid_sequences.append(seq)
+
+    # Filter sequences whose GC content falls within the specified range
+    gc_filtered_sequences = [
+        seq for seq in valid_sequences
+        if gc_min <= gc_content(seq) <= gc_max
+    ]
+
+    return len(gc_filtered_sequences), ["".join(seq) for seq in gc_filtered_sequences]
+
+# Parameter configuration
+sequence_length = 6          # Sequence length
+symbols = ['A', 'G', 'C', 'T']  # Nucleotide types
+min_distance = 4             # Minimum Hamming distance
+gc_min = 2                   # Minimum GC content
+gc_max = 4                   # Maximum GC content
+
+# Run the program
+count, sequences = find_gc_filtered_sequences(sequence_length, symbols, min_distance, gc_min, gc_max)
+
+# Print results
+print(f"Number of sequences satisfying the conditions: {count}")
+print("The sequences are:")
+print(sequences)
+
+==============Part B. Data processing of nanopore sequencing====================================================================
+Linux
 
 Basecalling and read length filter:
 
