@@ -1,4 +1,4 @@
-# mSPOT: Multiplexed DNAzyme-based Sensing with Parallel Optical Transduction
+# mSPOT
 
 > **Note on Data Availability**  
 > Raw `pod5` signal files are too large for GitHub storage. We provide a short FASTA file (`calls.fa`) for testing the downstream bioinformatics pipeline. Reviewers can execute **Part B, Steps 4–12** directly to verify data processing.
